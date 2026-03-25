@@ -18,15 +18,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-      - run: npm ci
-      - name: Debug - List files
-        run: |
-          echo "=== ROOT DIRECTORY ==="
-          ls -la
-          echo "=== CHECKING FOR APP FILES ==="
-          find . -name "App*" -type f
-          echo "=== INDEX.JS CONTENT ==="
-          cat index.js
+      - run: npm install
       - run: |
           cd android
           ./gradlew assembleRelease
@@ -43,15 +35,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-      - run: npm ci
-      - name: Debug - List files
-        run: |
-          echo "=== ROOT DIRECTORY ==="
-          ls -la
-          echo "=== CHECKING FOR APP FILES ==="
-          find . -name "App*" -type f
-          echo "=== INDEX.JS CONTENT ==="
-          cat index.js
+      - run: npm install
       - run: |
           cd ios
           pod install
@@ -75,7 +59,6 @@ jobs:
       - name: Export IPA (No Signing)
         run: |
           cd ios
-          # Kein Export für unsigned Archive - direkt .app packen
           mkdir -p Payload
           cp -r ./build/HitVaultV3.xcarchive/Products/Applications/HitVaultV3.app Payload/
           zip -r HitVaultV3.ipa Payload/
