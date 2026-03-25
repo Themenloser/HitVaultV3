@@ -9,6 +9,9 @@ export const API_ENDPOINTS = {
   STREAM: '/stream',  // For streaming (returns JSON with streamUrl)
   AUDIO: '/audio',    // For audio download (returns MP3 file)
   VIDEO: '/video',    // For video download (returns MP4 file)
+  INFO: '/info',      // Get video info and available formats
+  DOWNLOAD_VIDEO: '/download/video',  // Download video with format selection
+  DOWNLOAD_AUDIO: '/download/audio',  // Download audio with quality selection
 };
 
 // Robust API client with error handling and logging
@@ -249,6 +252,122 @@ export const apiClient = {
     }
 
     throw new Error(lastError?.message || 'Video konnte nicht heruntergeladen werden.');
+  },
+
+  // Get video info and available formats - POST /info
+  async getVideoInfo(url) {
+    if (!url) {
+      throw new Error('URL ist erforderlich');
+    }
+
+    addLog('VIDEO_INFO', `Getting info for: ${url}`);
+
+    try {
+      const data = await this.request(API_ENDPOINTS.INFO, {
+        method: 'POST',
+        body: JSON.stringify({ url }),
+      });
+
+      addLog('VIDEO_INFO_SUCCESS', 'Got video info', { 
+        formats: data.formats?.length || 0,
+        title: data.title 
+      });
+
+      return data;
+    } catch (error) {
+      addLog('VIDEO_INFO_ERROR', error.message);
+      throw new Error('Video-Informationen konnten nicht abgerufen werden.');
+    }
+  },
+
+  // Download video with format selection - POST /download/video
+  async downloadVideoWithFormat(url, formatId, mergeTo = 'mp4') {
+    if (!url || !formatId) {
+      throw new Error('URL und Format-ID sind erforderlich');
+    }
+
+    addLog('DOWNLOAD_VIDEO_FORMAT', `Downloading video: ${url}, format: ${formatId}, merge: ${mergeTo}`);
+
+    try {
+      const data = await this.request(API_ENDPOINTS.DOWNLOAD_VIDEO, {
+        method: 'POST',
+        body: JSON.stringify({ 
+          url, 
+          format_id: formatId, 
+          merge_to: mergeTo 
+        }),
+      });
+
+      addLog('DOWNLOAD_VIDEO_FORMAT_SUCCESS', 'Video download ready', { 
+        filename: data.filename,
+        download_url: data.download_url 
+      });
+
+      return data;
+    } catch (error) {
+      addLog('DOWNLOAD_VIDEO_FORMAT_ERROR', error.message);
+      throw new Error('Video-Download mit Format-Auswahl fehlgeschlagen.');
+    }
+  },
+
+  // Download audio with quality selection - POST /download/audio
+  async downloadAudioWithQuality(url, audioFormat = 'mp3', audioQuality = '192') {
+    if (!url) {
+      throw new Error('URL ist erforderlich');
+    }
+
+    addLog('DOWNLOAD_AUDIO_QUALITY', `Downloading audio: ${url}, format: ${audioFormat}, quality: ${audioQuality}`);
+
+    try {
+      const data = await this.request(API_ENDPOINTS.DOWNLOAD_AUDIO, {
+        method: 'POST',
+        body: JSON.stringify({ 
+          url, 
+          audio_format: audioFormat, 
+          audio_quality: audioQuality 
+        }),
+      });
+
+      addLog('DOWNLOAD_AUDIO_QUALITY_SUCCESS', 'Audio download ready', { 
+        filename: data.filename,
+        download_url: data.download_url 
+      });
+
+      return data;
+    } catch (error) {
+      addLog('DOWNLOAD_AUDIO_QUALITY_ERROR', error.message);
+      throw new Error('Audio-Download mit Qualität-Auswahl fehlgeschlagen.');
+    }
+  },
+
+  // Download file from /file/{filename} endpoint
+  async downloadFile(filename) {
+    if (!filename) {
+      throw new Error('Filename ist erforderlich');
+    }
+
+    addLog('DOWNLOAD_FILE', `Downloading file: ${filename}`);
+
+    try {
+      const url = `${BACKEND_BASE_URL}/file/${encodeURIComponent(filename)}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      addLog('DOWNLOAD_FILE_SUCCESS', `Got file blob: ${blob.size} bytes`);
+      
+      return {
+        blob,
+        size: blob.size,
+        type: blob.type,
+      };
+    } catch (error) {
+      addLog('DOWNLOAD_FILE_ERROR', error.message);
+      throw new Error('Datei konnte nicht heruntergeladen werden.');
+    }
   },
 };
 

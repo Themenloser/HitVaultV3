@@ -15,6 +15,8 @@ import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '../config/api';
 import { addLog } from './SettingsScreen';
+import FormatSelectionModal from '../components/FormatSelectionModal';
+import AudioQualityModal from '../components/AudioQualityModal';
 
 // SF Symbol component for iOS native icons using text symbols (not emojis)
 const SFSymbol = ({ name, size = 20, color = '#333' }) => {
@@ -39,6 +41,9 @@ export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [formatModalVisible, setFormatModalVisible] = useState(false);
+  const [audioModalVisible, setAudioModalVisible] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const search = async () => {
     if (!searchQuery.trim()) {
@@ -96,58 +101,34 @@ export default function SearchScreen() {
   };
 
   const handleDownloadAudio = async (item) => {
-    try {
-      addLog('DOWNLOAD', `Starting audio download for: ${item.title}`);
-      
-      // Download audio file from /audio endpoint (returns MP3 blob)
-      const audioBlob = await apiClient.downloadAudio(item.url || item.id);
-      
-      const fileName = `${item.title.replace(/[^a-z0-9]/gi, '_')}.mp3`;
-      const downloadPath = `${RNFS.DocumentDirectoryPath}/audios/${fileName}`;
-      
-      // Create directory if it doesn't exist
-      await RNFS.mkdir(`${RNFS.DocumentDirectoryPath}/audios`);
-      
-      // Convert blob to base64 and write to file
-      // For React Native, we need to use the blob differently
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64data = reader.result.split(',')[1];
-        await RNFS.writeFile(downloadPath, base64data, 'base64');
-        
-        // Save to AsyncStorage
-        const existingSongs = await AsyncStorage.getItem('songs') || '[]';
-        const songs = JSON.parse(existingSongs);
-        songs.push({
-          id: item.id,
-          title: item.title,
-          artist: item.artist || 'Unbekannter Künstler',
-          localPath: downloadPath,
-          downloadedAt: new Date().toISOString(),
-        });
-        await AsyncStorage.setItem('songs', JSON.stringify(songs));
-        
-        addLog('DOWNLOAD_SUCCESS', `Audio saved: ${fileName}`);
-        Alert.alert('Download erfolgreich', `"${item.title}" wurde heruntergeladen`);
-      };
-      reader.readAsDataURL(audioBlob.blob);
-      
-      Alert.alert('Download gestartet', `Lade "${item.title}" herunter...`);
-    } catch (error) {
-      addLog('DOWNLOAD_ERROR', error.message);
-      console.error('Download audio error:', error);
-      Alert.alert('Download-Fehler', error.message);
-    }
+    setSelectedItem(item);
+    setAudioModalVisible(true);
   };
 
   const handleDownloadVideo = async (item) => {
+    setSelectedItem(item);
+    setFormatModalVisible(true);
+  };
+
+  const handleFormatSelected = async (selection) => {
+    if (!selectedItem) return;
+
     try {
-      addLog('DOWNLOAD', `Starting video download for: ${item.title}`);
+      addLog('DOWNLOAD_VIDEO_FORMAT', `Starting video download with format: ${selection.formatId}`);
       
-      // Download video file from /video endpoint (returns MP4 blob)
-      const videoBlob = await apiClient.downloadVideo(item.url || item.id);
+      // Start download with selected format
+      const downloadInfo = await apiClient.downloadVideoWithFormat(
+        selectedItem.url || selectedItem.id,
+        selection.formatId,
+        selection.mergeTo
+      );
       
-      const fileName = `${item.title.replace(/[^a-z0-9]/gi, '_')}.mp4`;
+      Alert.alert('Download gestartet', `Lade "${selectedItem.title}" herunter...`);
+      
+      // Download the actual file
+      const fileBlob = await apiClient.downloadFile(downloadInfo.filename);
+      
+      const fileName = downloadInfo.filename;
       const downloadPath = `${RNFS.DocumentDirectoryPath}/videos/${fileName}`;
       
       // Create directory if it doesn't exist
@@ -163,24 +144,104 @@ export default function SearchScreen() {
         const existingVideos = await AsyncStorage.getItem('videos') || '[]';
         const videos = JSON.parse(existingVideos);
         videos.push({
-          id: item.id,
-          title: item.title,
-          artist: item.artist || 'Unbekannter Künstler',
+          id: selectedItem.id,
+          title: selectedItem.title,
+          artist: selectedItem.artist || 'Unbekannter Künstler',
           localPath: downloadPath,
           downloadedAt: new Date().toISOString(),
+          format: selection.format,
+          quality: `${selection.format.resolution || 'Unknown'}${selection.format.fps ? `@${selection.format.fps}fps` : ''}`,
         });
         await AsyncStorage.setItem('videos', JSON.stringify(videos));
         
-        addLog('DOWNLOAD_SUCCESS', `Video saved: ${fileName}`);
-        Alert.alert('Video-Download erfolgreich', `"${item.title}" wurde heruntergeladen`);
+        addLog('DOWNLOAD_VIDEO_SUCCESS', `Video saved: ${fileName}`);
+        Alert.alert('Video-Download erfolgreich', `"${selectedItem.title}" wurde heruntergeladen`);
       };
-      reader.readAsDataURL(videoBlob.blob);
+      reader.readAsDataURL(fileBlob.blob);
       
-      Alert.alert('Video-Download gestartet', `Lade "${item.title}" herunter...`);
     } catch (error) {
-      addLog('DOWNLOAD_ERROR', error.message);
+      addLog('DOWNLOAD_VIDEO_ERROR', error.message);
       console.error('Download video error:', error);
       Alert.alert('Video-Download-Fehler', error.message);
+    }
+  };
+
+  const handleAudioQualitySelected = async (selection) => {
+    if (!selectedItem) return;
+
+    try {
+      addLog('DOWNLOAD_AUDIO_QUALITY', `Starting audio download with quality: ${selection.audioQuality}`);
+      
+      // Show conversion info for non-MP3 formats
+      if (selection.audioFormat !== 'mp3') {
+        Alert.alert(
+          'Konvertierung',
+          `Die Audio-Datei wird im ${selection.audioFormat.toUpperCase()} Format heruntergeladen und bei Bedarf in der App konvertiert.`
+        );
+      }
+      
+      // Start download with selected quality
+      const downloadInfo = await apiClient.downloadAudioWithQuality(
+        selectedItem.url || selectedItem.id,
+        selection.audioFormat,
+        selection.audioQuality
+      );
+      
+      Alert.alert('Download gestartet', `Lade "${selectedItem.title}" herunter...`);
+      
+      // Download the actual file
+      const fileBlob = await apiClient.downloadFile(downloadInfo.filename);
+      
+      const fileName = downloadInfo.filename;
+      const downloadPath = `${RNFS.DocumentDirectoryPath}/audios/${fileName}`;
+      
+      // Create directory if it doesn't exist
+      await RNFS.mkdir(`${RNFS.DocumentDirectoryPath}/audios`);
+      
+      // Convert blob to base64 and write to file
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64data = reader.result.split(',')[1];
+        await RNFS.writeFile(downloadPath, base64data, 'base64');
+        
+        // For non-MP3 formats, we could add in-app conversion here if needed
+        // But since the backend handles conversion, we just save the file
+        let finalPath = downloadPath;
+        let finalFormat = selection.audioFormat.toUpperCase();
+        
+        // If backend returned MP3 but user selected different format, it was converted
+        if (fileName.endsWith('.mp3') && selection.audioFormat !== 'mp3') {
+          addLog('AUDIO_CONVERTED', `Backend converted to MP3 as requested`);
+          finalFormat = 'MP3';
+        }
+        
+        // Save to AsyncStorage
+        const existingSongs = await AsyncStorage.getItem('songs') || '[]';
+        const songs = JSON.parse(existingSongs);
+        songs.push({
+          id: selectedItem.id,
+          title: selectedItem.title,
+          artist: selectedItem.artist || 'Unbekannter Künstler',
+          localPath: finalPath,
+          downloadedAt: new Date().toISOString(),
+          format: finalFormat,
+          quality: `${selection.audioQuality} kbps`,
+          originalFormat: selection.audioFormat.toUpperCase(),
+        });
+        await AsyncStorage.setItem('songs', JSON.stringify(songs));
+        
+        addLog('DOWNLOAD_AUDIO_SUCCESS', `Audio saved: ${fileName}`);
+        Alert.alert(
+          'Download erfolgreich', 
+          `"${selectedItem.title}" wurde als ${finalFormat} (${selection.audioQuality} kbps) heruntergeladen`
+        );
+      };
+      reader.readAsDataURL(fileBlob.blob);
+      
+    } catch (error) {
+      addLog('DOWNLOAD_AUDIO_ERROR', error.message);
+      console.error('Download audio error:', error);
+      Alert.alert('Download-Fehler', error.message);
     }
   };
 
@@ -299,6 +360,24 @@ export default function SearchScreen() {
           />
         )
       )}
+      
+      {/* Format Selection Modal */}
+      <FormatSelectionModal
+        visible={formatModalVisible}
+        onClose={() => setFormatModalVisible(false)}
+        onFormatSelected={handleFormatSelected}
+        videoUrl={selectedItem?.url || selectedItem?.id}
+        videoTitle={selectedItem?.title}
+      />
+      
+      {/* Audio Quality Selection Modal */}
+      <AudioQualityModal
+        visible={audioModalVisible}
+        onClose={() => setAudioModalVisible(false)}
+        onQualitySelected={handleAudioQualitySelected}
+        videoUrl={selectedItem?.url || selectedItem?.id}
+        videoTitle={selectedItem?.title}
+      />
     </SafeAreaView>
   );
 }
