@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useColorScheme } from 'react-native';
 import { enableScreens } from 'react-native-screens';
 import { BlurView } from 'react-native-blur';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import TrackPlayer from 'react-native-track-player';
 import LibraryScreen from './src/screens/LibraryScreen';
@@ -52,8 +53,10 @@ export default function App() {
   }, []);
 
   return (
-    <NavigationContainer>
-      <Tab.Navigator
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f8f9fa' }}>
+          <Tab.Navigator
         screenOptions={({ route }) => ({
           tabBarIcon: ({ focused, color, size }) => {
             let iconName;
@@ -82,7 +85,7 @@ export default function App() {
           ),
           tabBarLabelStyle: {
             fontFamily: 'System',
-            fontSize: 12,
+            fontSize: 10,
             fontWeight: '500',
           },
         })}
@@ -93,6 +96,8 @@ export default function App() {
         <Tab.Screen name="Playlists" component={PlaylistsScreen} />
         <Tab.Screen name="Einstellungen" component={SettingsScreen} />
       </Tab.Navigator>
-    </NavigationContainer>
+        </SafeAreaView>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }

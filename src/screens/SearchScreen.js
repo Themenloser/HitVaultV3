@@ -8,11 +8,13 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  SafeAreaView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import TrackPlayer from 'react-native-track-player';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiClient } from '../config/api';
 
 export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -20,16 +22,23 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
 
   const search = async () => {
-    if (!searchQuery.trim()) return;
+    if (!searchQuery.trim()) {
+      Alert.alert('Fehler', 'Bitte geben Sie einen Suchbegriff ein');
+      return;
+    }
 
     setLoading(true);
     try {
-      // TODO: Implement actual search with backend
-      const response = await fetch(`https://yt-is06.onrender.com/search?q=${encodeURIComponent(searchQuery)}`);
-      const data = await response.json();
-      setSearchResults(data.results || []);
+      const results = await apiClient.search(searchQuery);
+      setSearchResults(results);
+      
+      if (results.length === 0) {
+        Alert.alert('Keine Ergebnisse', `Keine Songs gefunden für "${searchQuery}"`);
+      }
     } catch (error) {
       console.error('Search error:', error);
+      Alert.alert('Suchfehler', error.message);
+      setSearchResults([]);
     } finally {
       setLoading(false);
     }
@@ -38,111 +47,154 @@ export default function SearchScreen() {
   const handlePlay = async (item) => {
     try {
       // Get audio stream URL
-      const response = await fetch('/audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: item.id })
-      });
-      const data = await response.json();
+      const audioData = await apiClient.getAudio(item.id);
       
+      if (!audioData.url) {
+        throw new Error('Keine gültige Audio-URL erhalten');
+      }
+
+      // Validate URL format
+      if (!audioData.url.startsWith('http')) {
+        throw new Error('Ungültiges URL-Format erhalten');
+      }
+
+      await TrackPlayer.reset(); // Clear previous tracks
       await TrackPlayer.add({
         id: item.id,
-        url: data.url,
+        url: audioData.url,
         title: item.title,
-        artist: item.artist
+        artist: item.artist || 'Unbekannter Künstler',
       });
       await TrackPlayer.play();
+      
+      Alert.alert('Erfolg', `Spielt jetzt: ${item.title}`);
     } catch (error) {
       console.error('Play error:', error);
-      Alert.alert('Fehler', 'Konnte Titel nicht abspielen');
+      Alert.alert('Wiedergabefehler', error.message);
     }
   };
 
   const handleDownloadAudio = async (item) => {
-    try {
-      const response = await fetch('/audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: item.id })
-      });
-      const data = await response.json();
-      
-      const fileName = `${item.title.replace(/[^a-z0-9]/gi, '_')}.mp3`;
-      const downloadPath = `${RNFS.DocumentDirectoryPath}/audios/${fileName}`;
-      
-      await RNFS.mkdir(`${RNFS.DocumentDirectoryPath}/audios`);
-      
-      const downloadResult = await RNFS.downloadFile({
-        fromUrl: data.url,
-        toFile: downloadPath,
-        progress: (res) => {
-          const progress = (res.bytesWritten / res.contentLength) * 100;
-          console.log(`Download Progress: ${progress}%`);
-        }
-      }).promise;
-      
-      if (downloadResult.statusCode === 200) {
-        // Save to AsyncStorage
-        const existingSongs = await AsyncStorage.getItem('songs') || '[]';
-        const songs = JSON.parse(existingSongs);
-        songs.push({
-          id: item.id,
-          title: item.title,
-          artist: item.artist,
-          localPath: downloadPath
-        });
-        await AsyncStorage.setItem('songs', JSON.stringify(songs));
-        
-        Alert.alert('Erfolg', 'Audio heruntergeladen');
-      }
-    } catch (error) {
-      console.error('Download audio error:', error);
-      Alert.alert('Fehler', 'Konnte Audio nicht herunterladen');
+  try {
+    const audioData = await apiClient.getAudio(item.id);
+    
+    if (!audioData.url) {
+      throw new Error('Keine gültige Download-URL erhalten');
     }
-  };
+
+    // Validate URL format
+    if (!audioData.url.startsWith('http')) {
+      throw new Error('Ungültiges URL-Format für Download');
+    }
+
+    const fileName = `${item.title.replace(/[^a-z0-9]/gi, '_')}.mp3`;
+    const downloadPath = `${RNFS.DocumentDirectoryPath}/audios/${fileName}`;
+    
+    // Create directory if it doesn't exist
+    await RNFS.mkdir(`${RNFS.DocumentDirectoryPath}/audios`, { NSURLIsExcludedFromBackupKey: true });
+    
+    // Show download started message
+    Alert.alert('Download gestartet', `Lade "${item.title}" herunter...`);
+    
+    const downloadResult = await RNFS.downloadFile({
+      fromUrl: audioData.url,
+      toFile: downloadPath,
+      progressDivider: 10,
+      progress: (res) => {
+        const progress = Math.round((res.bytesWritten / res.contentLength) * 100);
+        console.log(`Download Progress: ${progress}%`);
+      }
+    }).promise;
+    
+    if (downloadResult.statusCode === 200) {
+      // Verify file exists
+      const fileExists = await RNFS.exists(downloadPath);
+      if (!fileExists) {
+        throw new Error('Download abgeschlossen, aber Datei nicht gefunden');
+      }
+
+      // Save to AsyncStorage
+      const existingSongs = await AsyncStorage.getItem('songs') || '[]';
+      const songs = JSON.parse(existingSongs);
+      songs.push({
+        id: item.id,
+        title: item.title,
+        artist: item.artist || 'Unbekannter Künstler',
+        localPath: downloadPath,
+        downloadedAt: new Date().toISOString(),
+      });
+      await AsyncStorage.setItem('songs', JSON.stringify(songs));
+      
+      Alert.alert('Download erfolgreich', `"${item.title}" wurde heruntergeladen`);
+    } else {
+      throw new Error(`Download fehlgeschlagen mit Status: ${downloadResult.statusCode}`);
+    }
+  } catch (error) {
+    console.error('Download audio error:', error);
+    Alert.alert('Download-Fehler', error.message);
+  }
+};
 
   const handleDownloadVideo = async (item) => {
-    try {
-      const response = await fetch('/video', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: item.id })
-      });
-      const data = await response.json();
-      
-      const fileName = `${item.title.replace(/[^a-z0-9]/gi, '_')}.mp4`;
-      const downloadPath = `${RNFS.DocumentDirectoryPath}/videos/${fileName}`;
-      
-      await RNFS.mkdir(`${RNFS.DocumentDirectoryPath}/videos`);
-      
-      const downloadResult = await RNFS.downloadFile({
-        fromUrl: data.url,
-        toFile: downloadPath,
-        progress: (res) => {
-          const progress = (res.bytesWritten / res.contentLength) * 100;
-          console.log(`Download Progress: ${progress}%`);
-        }
-      }).promise;
-      
-      if (downloadResult.statusCode === 200) {
-        // Save to AsyncStorage
-        const existingVideos = await AsyncStorage.getItem('videos') || '[]';
-        const videos = JSON.parse(existingVideos);
-        videos.push({
-          id: item.id,
-          title: item.title,
-          artist: item.artist,
-          localPath: downloadPath
-        });
-        await AsyncStorage.setItem('videos', JSON.stringify(videos));
-        
-        Alert.alert('Erfolg', 'Video heruntergeladen');
-      }
-    } catch (error) {
-      console.error('Download video error:', error);
-      Alert.alert('Fehler', 'Konnte Video nicht herunterladen');
+  try {
+    const videoData = await apiClient.getVideo(item.id);
+    
+    if (!videoData.url) {
+      throw new Error('Keine gültige Video-Download-URL erhalten');
     }
-  };
+
+    // Validate URL format
+    if (!videoData.url.startsWith('http')) {
+      throw new Error('Ungültiges URL-Format für Video-Download');
+    }
+
+    const fileName = `${item.title.replace(/[^a-z0-9]/gi, '_')}.mp4`;
+    const downloadPath = `${RNFS.DocumentDirectoryPath}/videos/${fileName}`;
+    
+    // Create directory if it doesn't exist
+    await RNFS.mkdir(`${RNFS.DocumentDirectoryPath}/videos`, { NSURLIsExcludedFromBackupKey: true });
+    
+    // Show download started message
+    Alert.alert('Video-Download gestartet', `Lade "${item.title}" herunter...`);
+    
+    const downloadResult = await RNFS.downloadFile({
+      fromUrl: videoData.url,
+      toFile: downloadPath,
+      progressDivider: 10,
+      progress: (res) => {
+        const progress = Math.round((res.bytesWritten / res.contentLength) * 100);
+        console.log(`Video Download Progress: ${progress}%`);
+      }
+    }).promise;
+    
+    if (downloadResult.statusCode === 200) {
+      // Verify file exists
+      const fileExists = await RNFS.exists(downloadPath);
+      if (!fileExists) {
+        throw new Error('Video-Download abgeschlossen, aber Datei nicht gefunden');
+      }
+
+      // Save to AsyncStorage
+      const existingVideos = await AsyncStorage.getItem('videos') || '[]';
+      const videos = JSON.parse(existingVideos);
+      videos.push({
+        id: item.id,
+        title: item.title,
+        artist: item.artist || 'Unbekannter Künstler',
+        localPath: downloadPath,
+        downloadedAt: new Date().toISOString(),
+      });
+      await AsyncStorage.setItem('videos', JSON.stringify(videos));
+      
+      Alert.alert('Video-Download erfolgreich', `"${item.title}" wurde heruntergeladen`);
+    } else {
+      throw new Error(`Video-Download fehlgeschlagen mit Status: ${downloadResult.statusCode}`);
+    }
+  } catch (error) {
+    console.error('Download video error:', error);
+    Alert.alert('Video-Download-Fehler', error.message);
+  }
+};
 
   const handleToggleFavorite = async (item) => {
     try {
@@ -206,7 +258,7 @@ export default function SearchScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Suchen</Text>
       <TextInput
         style={styles.searchInput}
@@ -215,22 +267,34 @@ export default function SearchScreen() {
         onChangeText={setSearchQuery}
         onSubmitEditing={search}
         returnKeyType="search"
+        editable={!loading}
       />
       
-      {loading && <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />}
+      {loading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Suche läuft...</Text>
+        </View>
+      )}
       
-      {searchResults.length === 0 && !loading ? (
+      {!loading && searchResults.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Suche...</Text>
+          <Icon name="search" size={48} color="#ccc" />
+          <Text style={styles.emptyText}>
+            {searchQuery.trim() ? 'Keine Ergebnisse gefunden' : 'Geben Sie einen Suchbegriff ein'}
+          </Text>
         </View>
       ) : (
-        <FlatList
-          data={searchResults}
-          keyExtractor={(item) => item.id}
-          renderItem={renderResult}
-        />
+        !loading && (
+          <FlatList
+            data={searchResults}
+            keyExtractor={(item) => item.id}
+            renderItem={renderResult}
+            contentContainerStyle={styles.listContainer}
+          />
+        )
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -257,8 +321,16 @@ const styles = StyleSheet.create({
     borderColor: '#e0e0e0',
     fontFamily: 'System',
   },
-  loader: {
-    marginVertical: 20,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+    fontFamily: 'System',
   },
   emptyContainer: {
     flex: 1,
@@ -266,9 +338,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    fontSize: 18,
-    color: 'gray',
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
     fontFamily: 'System',
+  },
+  listContainer: {
+    paddingBottom: 20,
   },
   resultItem: {
     backgroundColor: 'white',

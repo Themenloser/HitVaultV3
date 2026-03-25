@@ -7,10 +7,12 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  SafeAreaView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import TrackPlayer from 'react-native-track-player';
 import RNFS from 'react-native-fs';
+import { apiClient } from '../config/api';
 
 export default function SettingsScreen() {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -30,13 +32,13 @@ export default function SettingsScreen() {
 
   const testBackend = async () => {
     try {
-      const response = await fetch('https://yt-is06.onrender.com/search?q=test');
-      const data = await response.json();
-      console.log('Backend test successful:', data);
-      Alert.alert('Backend Test', '✅ Backend erreichbar');
+      Alert.alert('Backend Test', 'Teste Backend-Verbindung...');
+      const results = await apiClient.search('Lacazette');
+      console.log('Backend test successful:', results);
+      Alert.alert('Backend Test', `✅ Backend erreichbar - ${results.length} Ergebnisse gefunden`);
     } catch (error) {
       console.error('Backend test failed:', error);
-      Alert.alert('Backend Test', '❌ Backend nicht erreichbar');
+      Alert.alert('Backend Test', `❌ Backend-Fehler: ${error.message}`);
     }
   };
 
@@ -66,7 +68,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Einstellungen</Text>
       
       <View style={styles.section}>
@@ -115,7 +117,7 @@ export default function SettingsScreen() {
           <Text style={styles.debugButtonText}>Test RNFS</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
