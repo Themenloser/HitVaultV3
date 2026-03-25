@@ -15,20 +15,20 @@ import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '../config/api';
 
-// SF Symbol component for iOS native icons
+// SF Symbol component for iOS native icons using text symbols (not emojis)
 const SFSymbol = ({ name, size = 20, color = '#333' }) => {
   const symbolMap = {
-    'play.fill': '▶',
-    'arrow.down.circle': '↓',
-    'video.fill': '▶',
-    'star': '☆',
+    'play.fill': '>',
+    'arrow.down.circle': 'D',
+    'video.fill': 'V',
+    'star': 'S',
     'star.fill': '★',
-    'magnifyingglass': '🔍',
-    'music.note': '♪',
+    'magnifyingglass': 'Q',
+    'music.note': 'N',
   };
   
   return (
-    <Text style={{ fontSize: size, color, fontWeight: '500' }}>
+    <Text style={{ fontSize: size, color, fontWeight: '700', fontFamily: 'System' }}>
       {symbolMap[name] || '•'}
     </Text>
   );
@@ -337,21 +337,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-    padding: 20,
+    paddingHorizontal: 16,
     fontFamily: 'System',
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700',
-    marginBottom: 20,
+    marginTop: 12,
+    marginBottom: 16,
     fontFamily: 'System',
   },
   searchInput: {
     backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 8,
+    padding: 12,
+    borderRadius: 10,
     fontSize: 16,
-    marginBottom: 20,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#e0e0e0',
     fontFamily: 'System',
@@ -371,6 +372,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
   },
   emptyText: {
     marginTop: 10,
@@ -384,35 +386,37 @@ const styles = StyleSheet.create({
   },
   resultItem: {
     backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   resultTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    marginBottom: 5,
+    marginBottom: 4,
     fontFamily: 'System',
   },
   resultArtist: {
-    fontSize: 14,
+    fontSize: 13,
     color: 'gray',
     marginBottom: 10,
     fontFamily: 'System',
   },
   buttonRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 10,
+    justifyContent: 'flex-start',
+    marginTop: 8,
+    gap: 8,
   },
   actionButton: {
-    width: 65,
-    height: 32,
+    flex: 1,
+    maxWidth: 70,
+    height: 36,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',

@@ -11,26 +11,25 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer from 'react-native-track-player';
 
-// SF Symbol component for iOS
+// SF Symbol component using text symbols (not emojis)
 const SFSymbol = ({ name, size = 20, color = '#333' }) => {
-  // Map SF Symbol names to system characters/fallbacks
   const symbolMap = {
-    'play.fill': '▶',
-    'pause.fill': '⏸',
+    'play.fill': '>',
+    'pause.fill': '|',
     'star.fill': '★',
-    'star': '☆',
-    'arrow.down.circle': '↓',
-    'video.fill': '▶',
-    'trash': '🗑',
-    'music.note': '♪',
-    'magnifyingglass': '🔍',
-    'person.fill': '👤',
-    'gear': '⚙',
-    'xmark.circle.fill': '×',
+    'star': 'S',
+    'arrow.down.circle': 'D',
+    'video.fill': 'V',
+    'trash': 'T',
+    'music.note': 'N',
+    'magnifyingglass': 'Q',
+    'person.fill': 'P',
+    'gear': 'G',
+    'xmark.circle.fill': 'X',
   };
   
   return (
-    <Text style={{ fontSize: size, color, fontWeight: '500' }}>
+    <Text style={{ fontSize: size, color, fontWeight: '700', fontFamily: 'System' }}>
       {symbolMap[name] || '•'}
     </Text>
   );

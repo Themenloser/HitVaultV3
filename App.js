@@ -14,18 +14,18 @@ import SettingsScreen from './src/screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
 
-// SF Symbol component for iOS native icons
+// SF Symbol component for iOS native icons using text symbols (not emojis)
 const SFSymbol = ({ name, size = 24, color = '#333' }) => {
   const symbolMap = {
-    'music.note.list': '☰',
-    'magnifyingglass': '🔍',
+    'music.note.list': '|||',
+    'magnifyingglass': 'Q',
     'video.fill': '▶',
     'star.fill': '★',
     'gearshape.fill': '⚙',
   };
   
   return (
-    <Text style={{ fontSize: size, color, fontWeight: '500' }}>
+    <Text style={{ fontSize: size, color, fontWeight: '600', fontFamily: 'System' }}>
       {symbolMap[name] || '•'}
     </Text>
   );

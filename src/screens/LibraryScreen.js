@@ -10,18 +10,18 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// SF Symbol component for iOS native icons
+// SF Symbol component using text symbols (not emojis)
 const SFSymbol = ({ name, size = 20, color = '#333' }) => {
   const symbolMap = {
     'star.fill': '★',
-    'star': '☆',
-    'music.note': '♪',
-    'trash': '🗑',
-    'play.fill': '▶',
+    'star': 'S',
+    'music.note': 'N',
+    'trash': 'T',
+    'play.fill': '>',
   };
   
   return (
-    <Text style={{ fontSize: size, color, fontWeight: '500' }}>
+    <Text style={{ fontSize: size, color, fontWeight: '700', fontFamily: 'System' }}>
       {symbolMap[name] || '•'}
     </Text>
   );

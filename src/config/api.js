@@ -1,4 +1,6 @@
 // Central API configuration for HitVaultV3
+import { addLog } from '../screens/SettingsScreen';
+
 export const BACKEND_BASE_URL = 'https://yt-is06.onrender.com';
 
 // API endpoints
@@ -8,15 +10,16 @@ export const API_ENDPOINTS = {
   VIDEO: '/video',
 };
 
-// Robust API client with error handling
+// Robust API client with error handling and logging
 export const apiClient = {
-  // Generic request method with better debugging
+  // Generic request method with comprehensive logging
   async request(endpoint, options = {}) {
+    const url = `${BACKEND_BASE_URL}${endpoint}`;
+    const method = options.method || 'GET';
+    
+    addLog('API', `${method} ${url}`, options.body);
+    
     try {
-      const url = `${BACKEND_BASE_URL}${endpoint}`;
-      console.log(`API Request: ${options.method || 'GET'} ${url}`);
-      console.log('Request body:', options.body);
-      
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
@@ -26,20 +29,19 @@ export const apiClient = {
         ...options,
       });
 
-      console.log(`API Response: ${response.status} ${response.statusText}`);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      addLog('API', `Response ${response.status} ${response.statusText}`);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Error response body:', errorText);
-        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+        addLog('API_ERROR', `HTTP ${response.status}`, errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
-      console.log('Response data:', data);
+      addLog('API_SUCCESS', 'Response received', { keys: Object.keys(data) });
       return data;
     } catch (error) {
-      console.error(`API Error for ${endpoint}:`, error);
+      addLog('API_ERROR', 'Request failed', error.message);
       throw error;
     }
   },
@@ -51,6 +53,7 @@ export const apiClient = {
     }
 
     try {
+      addLog('SEARCH', `Searching for: ${query}`);
       const data = await this.request(`${API_ENDPOINTS.SEARCH}?q=${encodeURIComponent(query.trim())}`);
       return data.results || [];
     } catch (error) {
@@ -61,15 +64,16 @@ export const apiClient = {
     }
   },
 
-  // Get audio download/stream URL - try different formats
+  // Get audio stream URL - yt-dlp compatible format
   async getAudio(videoId) {
     if (!videoId) {
       throw new Error('Video-ID ist erforderlich');
     }
 
-    // Try different request formats
+    addLog('AUDIO', `Getting audio for: ${videoId}`);
+
+    // Try different request formats that yt-dlp backends typically use
     const attempts = [
-      // Standard POST with JSON
       {
         endpoint: API_ENDPOINTS.AUDIO,
         options: {
@@ -77,52 +81,76 @@ export const apiClient = {
           body: JSON.stringify({ id: videoId }),
         },
       },
-      // Try with video_id field
       {
         endpoint: API_ENDPOINTS.AUDIO,
         options: {
           method: 'POST',
-          body: JSON.stringify({ video_id: videoId }),
+          body: JSON.stringify({ url: `https://www.youtube.com/watch?v=${videoId}` }),
         },
       },
-      // Try GET with query param
       {
-        endpoint: `${API_ENDPOINTS.AUDIO}?id=${videoId}`,
-        options: {
-          method: 'GET',
-        },
+        endpoint: `${API_ENDPOINTS.AUDIO}?id=${videoId}&format=audio`,
+        options: { method: 'GET' },
       },
     ];
 
+    let lastError = null;
     for (const attempt of attempts) {
       try {
-        console.log(`Attempting audio request with:`, attempt);
+        addLog('AUDIO_ATTEMPT', `Trying ${attempt.options.method} ${attempt.endpoint}`);
         const data = await this.request(attempt.endpoint, attempt.options);
         
-        if (data && (data.url || data.stream_url || data.download_url)) {
+        // yt-dlp backends typically return url in various formats
+        const streamUrl = data.url || data.stream_url || data.download_url || data.audio_url || data.link;
+        
+        if (streamUrl) {
+          addLog('AUDIO_SUCCESS', 'Got audio URL', { url: streamUrl.substring(0, 50) + '...' });
           return {
-            url: data.url || data.stream_url || data.download_url,
+            url: streamUrl,
+            title: data.title,
+            artist: data.artist || data.uploader,
+            duration: data.duration,
             ...data,
           };
         }
+        
+        // If no URL but has formats array (yt-dlp style response)
+        if (data.formats && data.formats.length > 0) {
+          const audioFormat = data.formats.find(f => f.acodec !== 'none' && f.vcodec === 'none') || 
+                             data.formats.find(f => f.ext === 'm4a' || f.ext === 'mp3') ||
+                             data.formats[0];
+          
+          if (audioFormat && audioFormat.url) {
+            addLog('AUDIO_SUCCESS', 'Got audio URL from formats', { format: audioFormat.format_id });
+            return {
+              url: audioFormat.url,
+              title: data.title,
+              artist: data.artist || data.uploader,
+              duration: data.duration,
+              format: audioFormat.format_id,
+              ...data,
+            };
+          }
+        }
       } catch (error) {
-        console.log(`Attempt failed:`, error.message);
+        lastError = error;
+        addLog('AUDIO_ATTEMPT_FAILED', error.message);
         continue;
       }
     }
 
-    throw new Error('Audio-URL konnte nicht abgerufen werden. Bitte überprüfen Sie die Video-ID.');
+    throw new Error(lastError?.message || 'Audio-URL konnte nicht abgerufen werden. Bitte überprüfen Sie die Video-ID.');
   },
 
-  // Get video download URL - try different formats
+  // Get video download URL - yt-dlp compatible format
   async getVideo(videoId) {
     if (!videoId) {
       throw new Error('Video-ID ist erforderlich');
     }
 
-    // Try different request formats
+    addLog('VIDEO', `Getting video for: ${videoId}`);
+
     const attempts = [
-      // Standard POST with JSON
       {
         endpoint: API_ENDPOINTS.VIDEO,
         options: {
@@ -130,41 +158,64 @@ export const apiClient = {
           body: JSON.stringify({ id: videoId }),
         },
       },
-      // Try with video_id field
       {
         endpoint: API_ENDPOINTS.VIDEO,
         options: {
           method: 'POST',
-          body: JSON.stringify({ video_id: videoId }),
+          body: JSON.stringify({ url: `https://www.youtube.com/watch?v=${videoId}` }),
         },
       },
-      // Try GET with query param
       {
-        endpoint: `${API_ENDPOINTS.VIDEO}?id=${videoId}`,
-        options: {
-          method: 'GET',
-        },
+        endpoint: `${API_ENDPOINTS.VIDEO}?id=${videoId}&format=video`,
+        options: { method: 'GET' },
       },
     ];
 
+    let lastError = null;
     for (const attempt of attempts) {
       try {
-        console.log(`Attempting video request with:`, attempt);
+        addLog('VIDEO_ATTEMPT', `Trying ${attempt.options.method} ${attempt.endpoint}`);
         const data = await this.request(attempt.endpoint, attempt.options);
         
-        if (data && (data.url || data.stream_url || data.download_url)) {
+        const streamUrl = data.url || data.stream_url || data.download_url || data.video_url || data.link;
+        
+        if (streamUrl) {
+          addLog('VIDEO_SUCCESS', 'Got video URL', { url: streamUrl.substring(0, 50) + '...' });
           return {
-            url: data.url || data.stream_url || data.download_url,
+            url: streamUrl,
+            title: data.title,
+            artist: data.artist || data.uploader,
+            duration: data.duration,
             ...data,
           };
         }
+        
+        // yt-dlp formats array
+        if (data.formats && data.formats.length > 0) {
+          const videoFormat = data.formats.find(f => f.vcodec !== 'none' && f.height >= 720) ||
+                             data.formats.find(f => f.vcodec !== 'none') ||
+                             data.formats[0];
+          
+          if (videoFormat && videoFormat.url) {
+            addLog('VIDEO_SUCCESS', 'Got video URL from formats', { format: videoFormat.format_id });
+            return {
+              url: videoFormat.url,
+              title: data.title,
+              artist: data.artist || data.uploader,
+              duration: data.duration,
+              format: videoFormat.format_id,
+              ...data,
+            };
+          }
+        }
       } catch (error) {
-        console.log(`Attempt failed:`, error.message);
+        lastError = error;
+        addLog('VIDEO_ATTEMPT_FAILED', error.message);
         continue;
       }
     }
 
-    throw new Error('Video-URL konnte nicht abgerufen werden. Bitte überprüfen Sie die Video-ID.');
+    throw new Error(lastError?.message || 'Video-URL konnte nicht abgerufen werden. Bitte überprüfen Sie die Video-ID.');
   },
 };
 
