@@ -14,6 +14,7 @@ import TrackPlayer from 'react-native-track-player';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '../config/api';
+import { addLog } from './SettingsScreen';
 
 // SF Symbol component for iOS native icons using text symbols (not emojis)
 const SFSymbol = ({ name, size = 20, color = '#333' }) => {
@@ -64,155 +65,124 @@ export default function SearchScreen() {
 
   const handlePlay = async (item) => {
     try {
-      // Get audio stream URL
-      const audioData = await apiClient.getAudio(item.id);
+      addLog('PLAY', `Starting playback for: ${item.title}`);
       
-      if (!audioData.url) {
-        throw new Error('Keine gültige Audio-URL erhalten');
+      // Get stream URL from /stream endpoint
+      const streamData = await apiClient.getStreamUrl(item.url || item.id);
+      
+      if (!streamData.url) {
+        throw new Error('Keine gültige Stream-URL erhalten');
       }
 
-      // Validate URL format
-      if (!audioData.url.startsWith('http')) {
-        throw new Error('Ungültiges URL-Format erhalten');
-      }
+      addLog('PLAY', `Got stream URL, setting up TrackPlayer`);
 
-      await TrackPlayer.reset(); // Clear previous tracks
+      await TrackPlayer.reset();
       await TrackPlayer.add({
         id: item.id,
-        url: audioData.url,
-        title: item.title,
-        artist: item.artist || 'Unbekannter Künstler',
+        url: streamData.url,
+        title: streamData.title || item.title,
+        artist: streamData.artist || item.artist || 'Unbekannter Künstler',
+        artwork: streamData.thumbnail || item.thumbnail,
       });
       await TrackPlayer.play();
       
+      addLog('PLAY_SUCCESS', `Playing: ${item.title}`);
       Alert.alert('Erfolg', `Spielt jetzt: ${item.title}`);
     } catch (error) {
+      addLog('PLAY_ERROR', error.message);
       console.error('Play error:', error);
       Alert.alert('Wiedergabefehler', error.message);
     }
   };
 
   const handleDownloadAudio = async (item) => {
-  try {
-    const audioData = await apiClient.getAudio(item.id);
-    
-    if (!audioData.url) {
-      throw new Error('Keine gültige Download-URL erhalten');
-    }
-
-    // Validate URL format
-    if (!audioData.url.startsWith('http')) {
-      throw new Error('Ungültiges URL-Format für Download');
-    }
-
-    const fileName = `${item.title.replace(/[^a-z0-9]/gi, '_')}.mp3`;
-    const downloadPath = `${RNFS.DocumentDirectoryPath}/audios/${fileName}`;
-    
-    // Create directory if it doesn't exist
-    await RNFS.mkdir(`${RNFS.DocumentDirectoryPath}/audios`, { NSURLIsExcludedFromBackupKey: true });
-    
-    // Show download started message
-    Alert.alert('Download gestartet', `Lade "${item.title}" herunter...`);
-    
-    const downloadResult = await RNFS.downloadFile({
-      fromUrl: audioData.url,
-      toFile: downloadPath,
-      progressDivider: 10,
-      progress: (res) => {
-        const progress = Math.round((res.bytesWritten / res.contentLength) * 100);
-        console.log(`Download Progress: ${progress}%`);
-      }
-    }).promise;
-    
-    if (downloadResult.statusCode === 200) {
-      // Verify file exists
-      const fileExists = await RNFS.exists(downloadPath);
-      if (!fileExists) {
-        throw new Error('Download abgeschlossen, aber Datei nicht gefunden');
-      }
-
-      // Save to AsyncStorage
-      const existingSongs = await AsyncStorage.getItem('songs') || '[]';
-      const songs = JSON.parse(existingSongs);
-      songs.push({
-        id: item.id,
-        title: item.title,
-        artist: item.artist || 'Unbekannter Künstler',
-        localPath: downloadPath,
-        downloadedAt: new Date().toISOString(),
-      });
-      await AsyncStorage.setItem('songs', JSON.stringify(songs));
+    try {
+      addLog('DOWNLOAD', `Starting audio download for: ${item.title}`);
       
-      Alert.alert('Download erfolgreich', `"${item.title}" wurde heruntergeladen`);
-    } else {
-      throw new Error(`Download fehlgeschlagen mit Status: ${downloadResult.statusCode}`);
+      // Download audio file from /audio endpoint (returns MP3 blob)
+      const audioBlob = await apiClient.downloadAudio(item.url || item.id);
+      
+      const fileName = `${item.title.replace(/[^a-z0-9]/gi, '_')}.mp3`;
+      const downloadPath = `${RNFS.DocumentDirectoryPath}/audios/${fileName}`;
+      
+      // Create directory if it doesn't exist
+      await RNFS.mkdir(`${RNFS.DocumentDirectoryPath}/audios`);
+      
+      // Convert blob to base64 and write to file
+      // For React Native, we need to use the blob differently
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64data = reader.result.split(',')[1];
+        await RNFS.writeFile(downloadPath, base64data, 'base64');
+        
+        // Save to AsyncStorage
+        const existingSongs = await AsyncStorage.getItem('songs') || '[]';
+        const songs = JSON.parse(existingSongs);
+        songs.push({
+          id: item.id,
+          title: item.title,
+          artist: item.artist || 'Unbekannter Künstler',
+          localPath: downloadPath,
+          downloadedAt: new Date().toISOString(),
+        });
+        await AsyncStorage.setItem('songs', JSON.stringify(songs));
+        
+        addLog('DOWNLOAD_SUCCESS', `Audio saved: ${fileName}`);
+        Alert.alert('Download erfolgreich', `"${item.title}" wurde heruntergeladen`);
+      };
+      reader.readAsDataURL(audioBlob.blob);
+      
+      Alert.alert('Download gestartet', `Lade "${item.title}" herunter...`);
+    } catch (error) {
+      addLog('DOWNLOAD_ERROR', error.message);
+      console.error('Download audio error:', error);
+      Alert.alert('Download-Fehler', error.message);
     }
-  } catch (error) {
-    console.error('Download audio error:', error);
-    Alert.alert('Download-Fehler', error.message);
-  }
-};
+  };
 
   const handleDownloadVideo = async (item) => {
-  try {
-    const videoData = await apiClient.getVideo(item.id);
-    
-    if (!videoData.url) {
-      throw new Error('Keine gültige Video-Download-URL erhalten');
-    }
-
-    // Validate URL format
-    if (!videoData.url.startsWith('http')) {
-      throw new Error('Ungültiges URL-Format für Video-Download');
-    }
-
-    const fileName = `${item.title.replace(/[^a-z0-9]/gi, '_')}.mp4`;
-    const downloadPath = `${RNFS.DocumentDirectoryPath}/videos/${fileName}`;
-    
-    // Create directory if it doesn't exist
-    await RNFS.mkdir(`${RNFS.DocumentDirectoryPath}/videos`, { NSURLIsExcludedFromBackupKey: true });
-    
-    // Show download started message
-    Alert.alert('Video-Download gestartet', `Lade "${item.title}" herunter...`);
-    
-    const downloadResult = await RNFS.downloadFile({
-      fromUrl: videoData.url,
-      toFile: downloadPath,
-      progressDivider: 10,
-      progress: (res) => {
-        const progress = Math.round((res.bytesWritten / res.contentLength) * 100);
-        console.log(`Video Download Progress: ${progress}%`);
-      }
-    }).promise;
-    
-    if (downloadResult.statusCode === 200) {
-      // Verify file exists
-      const fileExists = await RNFS.exists(downloadPath);
-      if (!fileExists) {
-        throw new Error('Video-Download abgeschlossen, aber Datei nicht gefunden');
-      }
-
-      // Save to AsyncStorage
-      const existingVideos = await AsyncStorage.getItem('videos') || '[]';
-      const videos = JSON.parse(existingVideos);
-      videos.push({
-        id: item.id,
-        title: item.title,
-        artist: item.artist || 'Unbekannter Künstler',
-        localPath: downloadPath,
-        downloadedAt: new Date().toISOString(),
-      });
-      await AsyncStorage.setItem('videos', JSON.stringify(videos));
+    try {
+      addLog('DOWNLOAD', `Starting video download for: ${item.title}`);
       
-      Alert.alert('Video-Download erfolgreich', `"${item.title}" wurde heruntergeladen`);
-    } else {
-      throw new Error(`Video-Download fehlgeschlagen mit Status: ${downloadResult.statusCode}`);
+      // Download video file from /video endpoint (returns MP4 blob)
+      const videoBlob = await apiClient.downloadVideo(item.url || item.id);
+      
+      const fileName = `${item.title.replace(/[^a-z0-9]/gi, '_')}.mp4`;
+      const downloadPath = `${RNFS.DocumentDirectoryPath}/videos/${fileName}`;
+      
+      // Create directory if it doesn't exist
+      await RNFS.mkdir(`${RNFS.DocumentDirectoryPath}/videos`);
+      
+      // Convert blob to base64 and write to file
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64data = reader.result.split(',')[1];
+        await RNFS.writeFile(downloadPath, base64data, 'base64');
+        
+        // Save to AsyncStorage
+        const existingVideos = await AsyncStorage.getItem('videos') || '[]';
+        const videos = JSON.parse(existingVideos);
+        videos.push({
+          id: item.id,
+          title: item.title,
+          artist: item.artist || 'Unbekannter Künstler',
+          localPath: downloadPath,
+          downloadedAt: new Date().toISOString(),
+        });
+        await AsyncStorage.setItem('videos', JSON.stringify(videos));
+        
+        addLog('DOWNLOAD_SUCCESS', `Video saved: ${fileName}`);
+        Alert.alert('Video-Download erfolgreich', `"${item.title}" wurde heruntergeladen`);
+      };
+      reader.readAsDataURL(videoBlob.blob);
+      
+      Alert.alert('Video-Download gestartet', `Lade "${item.title}" herunter...`);
+    } catch (error) {
+      addLog('DOWNLOAD_ERROR', error.message);
+      console.error('Download video error:', error);
+      Alert.alert('Video-Download-Fehler', error.message);
     }
-  } catch (error) {
-    console.error('Download video error:', error);
-    Alert.alert('Video-Download-Fehler', error.message);
-  }
-};
+  };
 
   const handleToggleFavorite = async (item) => {
     try {

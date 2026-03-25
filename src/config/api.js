@@ -6,8 +6,9 @@ export const BACKEND_BASE_URL = 'https://yt-is06.onrender.com';
 // API endpoints
 export const API_ENDPOINTS = {
   SEARCH: '/search',
-  AUDIO: '/audio',
-  VIDEO: '/video',
+  STREAM: '/stream',  // For streaming (returns JSON with streamUrl)
+  AUDIO: '/audio',    // For audio download (returns MP3 file)
+  VIDEO: '/video',    // For video download (returns MP4 file)
 };
 
 // Robust API client with error handling and logging
@@ -46,7 +47,7 @@ export const apiClient = {
     }
   },
 
-  // Search endpoint
+  // Search endpoint - GET /search?q=query
   async search(query) {
     if (!query || !query.trim()) {
       throw new Error('Suchbegriff darf nicht leer sein');
@@ -64,32 +65,31 @@ export const apiClient = {
     }
   },
 
-  // Get audio stream URL - yt-dlp compatible format
-  async getAudio(videoId) {
-    if (!videoId) {
-      throw new Error('Video-ID ist erforderlich');
+  // Get stream URL for playback - /stream endpoint returns JSON with streamUrl
+  async getStreamUrl(videoIdOrUrl) {
+    if (!videoIdOrUrl) {
+      throw new Error('Video-ID oder URL ist erforderlich');
     }
 
-    addLog('AUDIO', `Getting audio for: ${videoId}`);
+    addLog('STREAM', `Getting stream for: ${videoIdOrUrl}`);
 
-    // Try different request formats that yt-dlp backends typically use
+    // Determine if it's a full URL or just an ID
+    const isFullUrl = videoIdOrUrl.startsWith('http');
+    const param = isFullUrl ? 'url' : 'id';
+    const value = isFullUrl ? videoIdOrUrl : videoIdOrUrl;
+
     const attempts = [
+      // POST with JSON body
       {
-        endpoint: API_ENDPOINTS.AUDIO,
+        endpoint: API_ENDPOINTS.STREAM,
         options: {
           method: 'POST',
-          body: JSON.stringify({ id: videoId }),
+          body: JSON.stringify({ [param]: value }),
         },
       },
+      // GET with query param
       {
-        endpoint: API_ENDPOINTS.AUDIO,
-        options: {
-          method: 'POST',
-          body: JSON.stringify({ url: `https://www.youtube.com/watch?v=${videoId}` }),
-        },
-      },
-      {
-        endpoint: `${API_ENDPOINTS.AUDIO}?id=${videoId}&format=audio`,
+        endpoint: `${API_ENDPOINTS.STREAM}?${param}=${encodeURIComponent(value)}`,
         options: { method: 'GET' },
       },
     ];
@@ -97,76 +97,57 @@ export const apiClient = {
     let lastError = null;
     for (const attempt of attempts) {
       try {
-        addLog('AUDIO_ATTEMPT', `Trying ${attempt.options.method} ${attempt.endpoint}`);
+        addLog('STREAM_ATTEMPT', `Trying ${attempt.options.method}`);
         const data = await this.request(attempt.endpoint, attempt.options);
         
-        // yt-dlp backends typically return url in various formats
-        const streamUrl = data.url || data.stream_url || data.download_url || data.audio_url || data.link;
-        
-        if (streamUrl) {
-          addLog('AUDIO_SUCCESS', 'Got audio URL', { url: streamUrl.substring(0, 50) + '...' });
+        // Backend returns: { streamUrl, title, artist, thumbnail, duration }
+        if (data.streamUrl || data.url) {
+          addLog('STREAM_SUCCESS', 'Got stream URL', { 
+            url: (data.streamUrl || data.url).substring(0, 50) + '...',
+            title: data.title 
+          });
           return {
-            url: streamUrl,
+            url: data.streamUrl || data.url,
             title: data.title,
             artist: data.artist || data.uploader,
+            thumbnail: data.thumbnail,
             duration: data.duration,
-            ...data,
           };
-        }
-        
-        // If no URL but has formats array (yt-dlp style response)
-        if (data.formats && data.formats.length > 0) {
-          const audioFormat = data.formats.find(f => f.acodec !== 'none' && f.vcodec === 'none') || 
-                             data.formats.find(f => f.ext === 'm4a' || f.ext === 'mp3') ||
-                             data.formats[0];
-          
-          if (audioFormat && audioFormat.url) {
-            addLog('AUDIO_SUCCESS', 'Got audio URL from formats', { format: audioFormat.format_id });
-            return {
-              url: audioFormat.url,
-              title: data.title,
-              artist: data.artist || data.uploader,
-              duration: data.duration,
-              format: audioFormat.format_id,
-              ...data,
-            };
-          }
         }
       } catch (error) {
         lastError = error;
-        addLog('AUDIO_ATTEMPT_FAILED', error.message);
+        addLog('STREAM_ATTEMPT_FAILED', error.message);
         continue;
       }
     }
 
-    throw new Error(lastError?.message || 'Audio-URL konnte nicht abgerufen werden. Bitte überprüfen Sie die Video-ID.');
+    throw new Error(lastError?.message || 'Stream-URL konnte nicht abgerufen werden.');
   },
 
-  // Get video download URL - yt-dlp compatible format
-  async getVideo(videoId) {
-    if (!videoId) {
-      throw new Error('Video-ID ist erforderlich');
+  // Download audio file - /audio endpoint returns MP3 blob
+  async downloadAudio(videoIdOrUrl) {
+    if (!videoIdOrUrl) {
+      throw new Error('Video-ID oder URL ist erforderlich');
     }
 
-    addLog('VIDEO', `Getting video for: ${videoId}`);
+    addLog('DOWNLOAD_AUDIO', `Downloading audio for: ${videoIdOrUrl}`);
+
+    const isFullUrl = videoIdOrUrl.startsWith('http');
+    const param = isFullUrl ? 'url' : 'id';
+    const value = isFullUrl ? videoIdOrUrl : videoIdOrUrl;
 
     const attempts = [
+      // POST with JSON body
       {
-        endpoint: API_ENDPOINTS.VIDEO,
+        endpoint: API_ENDPOINTS.AUDIO,
         options: {
           method: 'POST',
-          body: JSON.stringify({ id: videoId }),
+          body: JSON.stringify({ [param]: value }),
         },
       },
+      // GET with query param
       {
-        endpoint: API_ENDPOINTS.VIDEO,
-        options: {
-          method: 'POST',
-          body: JSON.stringify({ url: `https://www.youtube.com/watch?v=${videoId}` }),
-        },
-      },
-      {
-        endpoint: `${API_ENDPOINTS.VIDEO}?id=${videoId}&format=video`,
+        endpoint: `${API_ENDPOINTS.AUDIO}?${param}=${encodeURIComponent(value)}`,
         options: { method: 'GET' },
       },
     ];
@@ -174,48 +155,100 @@ export const apiClient = {
     let lastError = null;
     for (const attempt of attempts) {
       try {
-        addLog('VIDEO_ATTEMPT', `Trying ${attempt.options.method} ${attempt.endpoint}`);
-        const data = await this.request(attempt.endpoint, attempt.options);
+        addLog('DOWNLOAD_ATTEMPT', `Trying ${attempt.options.method} ${attempt.endpoint}`);
         
-        const streamUrl = data.url || data.stream_url || data.download_url || data.video_url || data.link;
-        
-        if (streamUrl) {
-          addLog('VIDEO_SUCCESS', 'Got video URL', { url: streamUrl.substring(0, 50) + '...' });
-          return {
-            url: streamUrl,
-            title: data.title,
-            artist: data.artist || data.uploader,
-            duration: data.duration,
-            ...data,
-          };
+        const url = `${BACKEND_BASE_URL}${attempt.endpoint}`;
+        const response = await fetch(url, {
+          ...attempt.options,
+          headers: {
+            'Accept': 'audio/mpeg, */*',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
+
+        // Get the blob from response
+        const blob = await response.blob();
+        addLog('DOWNLOAD_SUCCESS', `Got audio blob: ${blob.size} bytes`);
         
-        // yt-dlp formats array
-        if (data.formats && data.formats.length > 0) {
-          const videoFormat = data.formats.find(f => f.vcodec !== 'none' && f.height >= 720) ||
-                             data.formats.find(f => f.vcodec !== 'none') ||
-                             data.formats[0];
-          
-          if (videoFormat && videoFormat.url) {
-            addLog('VIDEO_SUCCESS', 'Got video URL from formats', { format: videoFormat.format_id });
-            return {
-              url: videoFormat.url,
-              title: data.title,
-              artist: data.artist || data.uploader,
-              duration: data.duration,
-              format: videoFormat.format_id,
-              ...data,
-            };
-          }
-        }
+        return {
+          blob,
+          size: blob.size,
+          type: blob.type,
+        };
       } catch (error) {
         lastError = error;
-        addLog('VIDEO_ATTEMPT_FAILED', error.message);
+        addLog('DOWNLOAD_ATTEMPT_FAILED', error.message);
         continue;
       }
     }
 
-    throw new Error(lastError?.message || 'Video-URL konnte nicht abgerufen werden. Bitte überprüfen Sie die Video-ID.');
+    throw new Error(lastError?.message || 'Audio konnte nicht heruntergeladen werden.');
+  },
+
+  // Download video file - /video endpoint returns MP4 blob
+  async downloadVideo(videoIdOrUrl) {
+    if (!videoIdOrUrl) {
+      throw new Error('Video-ID oder URL ist erforderlich');
+    }
+
+    addLog('DOWNLOAD_VIDEO', `Downloading video for: ${videoIdOrUrl}`);
+
+    const isFullUrl = videoIdOrUrl.startsWith('http');
+    const param = isFullUrl ? 'url' : 'id';
+    const value = isFullUrl ? videoIdOrUrl : videoIdOrUrl;
+
+    const attempts = [
+      // POST with JSON body
+      {
+        endpoint: API_ENDPOINTS.VIDEO,
+        options: {
+          method: 'POST',
+          body: JSON.stringify({ [param]: value }),
+        },
+      },
+      // GET with query param
+      {
+        endpoint: `${API_ENDPOINTS.VIDEO}?${param}=${encodeURIComponent(value)}`,
+        options: { method: 'GET' },
+      },
+    ];
+
+    let lastError = null;
+    for (const attempt of attempts) {
+      try {
+        addLog('DOWNLOAD_ATTEMPT', `Trying ${attempt.options.method} ${attempt.endpoint}`);
+        
+        const url = `${BACKEND_BASE_URL}${attempt.endpoint}`;
+        const response = await fetch(url, {
+          ...attempt.options,
+          headers: {
+            'Accept': 'video/mp4, */*',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        addLog('DOWNLOAD_SUCCESS', `Got video blob: ${blob.size} bytes`);
+        
+        return {
+          blob,
+          size: blob.size,
+          type: blob.type,
+        };
+      } catch (error) {
+        lastError = error;
+        addLog('DOWNLOAD_ATTEMPT_FAILED', error.message);
+        continue;
+      }
+    }
+
+    throw new Error(lastError?.message || 'Video konnte nicht heruntergeladen werden.');
   },
 };
 

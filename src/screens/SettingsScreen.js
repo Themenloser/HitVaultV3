@@ -140,15 +140,15 @@ export default function SettingsScreen() {
   };
 
   const testAudioEndpoint = async () => {
-    addLog('TEST', 'Testing audio endpoint...');
+    addLog('TEST', 'Testing stream endpoint...');
     try {
       const testVideoId = 'dQw4w9WgXcQ';
-      const result = await apiClient.getAudio(testVideoId);
-      addLog('SUCCESS', 'Audio endpoint test passed', { hasUrl: !!result.url });
-      Alert.alert('Audio Test', `[OK] Audio URL erhalten: ${result.url ? 'Ja' : 'Nein'}`);
+      const result = await apiClient.getStreamUrl(testVideoId);
+      addLog('SUCCESS', 'Stream endpoint test passed', { hasUrl: !!result.url });
+      Alert.alert('Stream Test', `[OK] Stream URL erhalten: ${result.url ? 'Ja' : 'Nein'}`);
     } catch (error) {
-      addLog('ERROR', 'Audio endpoint test failed', error.message);
-      Alert.alert('Audio Test', `[X] Audio Fehler: ${error.message}`);
+      addLog('ERROR', 'Stream endpoint test failed', error.message);
+      Alert.alert('Stream Test', `[X] Stream Fehler: ${error.message}`);
     }
   };
 
@@ -216,7 +216,7 @@ export default function SettingsScreen() {
           
           <TouchableOpacity style={styles.debugButton} onPress={testAudioEndpoint}>
             <SFSymbol name="play.circle.fill" size={20} color="#34C759" />
-            <Text style={styles.debugButtonText}>Test Audio Stream</Text>
+            <Text style={styles.debugButtonText}>Test Stream</Text>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.debugButton} onPress={testTrackPlayer}>
