@@ -10,27 +10,34 @@ export const API_ENDPOINTS = {
 
 // Robust API client with error handling
 export const apiClient = {
-  // Generic request method
+  // Generic request method with better debugging
   async request(endpoint, options = {}) {
     try {
       const url = `${BACKEND_BASE_URL}${endpoint}`;
       console.log(`API Request: ${options.method || 'GET'} ${url}`);
+      console.log('Request body:', options.body);
       
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
           ...options.headers,
         },
         ...options,
       });
 
       console.log(`API Response: ${response.status} ${response.statusText}`);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Error response body:', errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log('Response data:', data);
+      return data;
     } catch (error) {
       console.error(`API Error for ${endpoint}:`, error);
       throw error;
@@ -54,44 +61,110 @@ export const apiClient = {
     }
   },
 
-  // Get audio download/stream URL
+  // Get audio download/stream URL - try different formats
   async getAudio(videoId) {
     if (!videoId) {
       throw new Error('Video-ID ist erforderlich');
     }
 
-    try {
-      const data = await this.request(API_ENDPOINTS.AUDIO, {
-        method: 'POST',
-        body: JSON.stringify({ id: videoId }),
-      });
-      return data;
-    } catch (error) {
-      if (error.message.includes('Video-ID')) {
-        throw error;
+    // Try different request formats
+    const attempts = [
+      // Standard POST with JSON
+      {
+        endpoint: API_ENDPOINTS.AUDIO,
+        options: {
+          method: 'POST',
+          body: JSON.stringify({ id: videoId }),
+        },
+      },
+      // Try with video_id field
+      {
+        endpoint: API_ENDPOINTS.AUDIO,
+        options: {
+          method: 'POST',
+          body: JSON.stringify({ video_id: videoId }),
+        },
+      },
+      // Try GET with query param
+      {
+        endpoint: `${API_ENDPOINTS.AUDIO}?id=${videoId}`,
+        options: {
+          method: 'GET',
+        },
+      },
+    ];
+
+    for (const attempt of attempts) {
+      try {
+        console.log(`Attempting audio request with:`, attempt);
+        const data = await this.request(attempt.endpoint, attempt.options);
+        
+        if (data && (data.url || data.stream_url || data.download_url)) {
+          return {
+            url: data.url || data.stream_url || data.download_url,
+            ...data,
+          };
+        }
+      } catch (error) {
+        console.log(`Attempt failed:`, error.message);
+        continue;
       }
-      throw new Error('Audio-URL konnte nicht abgerufen werden. Bitte versuchen Sie es später erneut.');
     }
+
+    throw new Error('Audio-URL konnte nicht abgerufen werden. Bitte überprüfen Sie die Video-ID.');
   },
 
-  // Get video download URL
+  // Get video download URL - try different formats
   async getVideo(videoId) {
     if (!videoId) {
       throw new Error('Video-ID ist erforderlich');
     }
 
-    try {
-      const data = await this.request(API_ENDPOINTS.VIDEO, {
-        method: 'POST',
-        body: JSON.stringify({ id: videoId }),
-      });
-      return data;
-    } catch (error) {
-      if (error.message.includes('Video-ID')) {
-        throw error;
+    // Try different request formats
+    const attempts = [
+      // Standard POST with JSON
+      {
+        endpoint: API_ENDPOINTS.VIDEO,
+        options: {
+          method: 'POST',
+          body: JSON.stringify({ id: videoId }),
+        },
+      },
+      // Try with video_id field
+      {
+        endpoint: API_ENDPOINTS.VIDEO,
+        options: {
+          method: 'POST',
+          body: JSON.stringify({ video_id: videoId }),
+        },
+      },
+      // Try GET with query param
+      {
+        endpoint: `${API_ENDPOINTS.VIDEO}?id=${videoId}`,
+        options: {
+          method: 'GET',
+        },
+      },
+    ];
+
+    for (const attempt of attempts) {
+      try {
+        console.log(`Attempting video request with:`, attempt);
+        const data = await this.request(attempt.endpoint, attempt.options);
+        
+        if (data && (data.url || data.stream_url || data.download_url)) {
+          return {
+            url: data.url || data.stream_url || data.download_url,
+            ...data,
+          };
+        }
+      } catch (error) {
+        console.log(`Attempt failed:`, error.message);
+        continue;
       }
-      throw new Error('Video-URL konnte nicht abgerufen werden. Bitte versuchen Sie es später erneut.');
     }
+
+    throw new Error('Video-URL konnte nicht abgerufen werden. Bitte überprüfen Sie die Video-ID.');
   },
 };
 

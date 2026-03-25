@@ -227,31 +227,31 @@ export default function SearchScreen() {
       
       <View style={styles.buttonRow}>
         <TouchableOpacity 
-          style={[styles.actionButton, styles.playButton]} 
+          style={styles.actionButton} 
           onPress={() => handlePlay(item)}
         >
-          <Icon name="play-arrow" size={20} color="white" />
+          <Icon name="play-arrow" size={20} color="#333" />
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={[styles.actionButton, styles.downloadAudioButton]} 
+          style={styles.actionButton} 
           onPress={() => handleDownloadAudio(item)}
         >
-          <Icon name="download" size={20} color="white" />
+          <Icon name="download" size={20} color="#333" />
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={[styles.actionButton, styles.downloadVideoButton]} 
+          style={styles.actionButton} 
           onPress={() => handleDownloadVideo(item)}
         >
-          <Icon name="videocam" size={20} color="white" />
+          <Icon name="videocam" size={20} color="#333" />
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={[styles.actionButton, styles.favoriteButton]} 
+          style={styles.actionButton} 
           onPress={() => handleToggleFavorite(item)}
         >
-          <Icon name="star" size={20} color="white" />
+          <Icon name="star" size={20} color="#333" />
         </TouchableOpacity>
       </View>
     </View>
@@ -381,17 +381,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  playButton: {
-    backgroundColor: '#007AFF',
-  },
-  downloadAudioButton: {
-    backgroundColor: '#34C759',
-  },
-  downloadVideoButton: {
-    backgroundColor: '#FF9500',
-  },
-  favoriteButton: {
-    backgroundColor: '#FFCC00',
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
 });
