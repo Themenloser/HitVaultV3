@@ -19,6 +19,14 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
+      - name: Debug - List files
+        run: |
+          echo "=== ROOT DIRECTORY ==="
+          ls -la
+          echo "=== CHECKING FOR APP FILES ==="
+          find . -name "App*" -type f
+          echo "=== INDEX.JS CONTENT ==="
+          cat index.js
       - run: |
           cd android
           ./gradlew assembleRelease
@@ -36,6 +44,14 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
+      - name: Debug - List files
+        run: |
+          echo "=== ROOT DIRECTORY ==="
+          ls -la
+          echo "=== CHECKING FOR APP FILES ==="
+          find . -name "App*" -type f
+          echo "=== INDEX.JS CONTENT ==="
+          cat index.js
       - run: |
           cd ios
           pod install
