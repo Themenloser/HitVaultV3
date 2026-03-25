@@ -1,19 +1,35 @@
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, Text } from 'react-native';
 import { enableScreens } from 'react-native-screens';
 import { BlurView } from 'react-native-blur';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 import TrackPlayer from 'react-native-track-player';
 import LibraryScreen from './src/screens/LibraryScreen';
 import SearchScreen from './src/screens/SearchScreen';
 import VideosScreen from './src/screens/VideosScreen';
-import PlaylistsScreen from './src/screens/PlaylistsScreen';
+import FavoritesScreen from './src/screens/FavoritesScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
+
+// SF Symbol component for iOS native icons
+const SFSymbol = ({ name, size = 24, color = '#333' }) => {
+  const symbolMap = {
+    'music.note.list': '☰',
+    'magnifyingglass': '🔍',
+    'video.fill': '▶',
+    'star.fill': '★',
+    'gearshape.fill': '⚙',
+  };
+  
+  return (
+    <Text style={{ fontSize: size, color, fontWeight: '500' }}>
+      {symbolMap[name] || '•'}
+    </Text>
+  );
+};
 
 // Enable screens for better performance
 enableScreens();
@@ -60,12 +76,12 @@ export default function App() {
         screenOptions={({ route }) => ({
           tabBarIcon: ({ focused, color, size }) => {
             let iconName;
-            if (route.name === 'Bibliothek') iconName = 'library-music';
-            else if (route.name === 'Suchen') iconName = 'search';
-            else if (route.name === 'Videos') iconName = 'videocam';
-            else if (route.name === 'Playlists') iconName = 'queue-music';
-            else if (route.name === 'Einstellungen') iconName = 'settings';
-            return <Icon name={iconName} size={size} color={color} />;
+            if (route.name === 'Bibliothek') iconName = 'music.note.list';
+            else if (route.name === 'Suchen') iconName = 'magnifyingglass';
+            else if (route.name === 'Videos') iconName = 'video.fill';
+            else if (route.name === 'Favoriten') iconName = 'star.fill';
+            else if (route.name === 'Einstellungen') iconName = 'gearshape.fill';
+            return <SFSymbol name={iconName} size={size} color={color} />;
           },
           tabBarActiveTintColor: '#007AFF',
           tabBarInactiveTintColor: 'gray',
@@ -93,7 +109,7 @@ export default function App() {
         <Tab.Screen name="Bibliothek" component={LibraryScreen} />
         <Tab.Screen name="Suchen" component={SearchScreen} />
         <Tab.Screen name="Videos" component={VideosScreen} />
-        <Tab.Screen name="Playlists" component={PlaylistsScreen} />
+        <Tab.Screen name="Favoriten" component={FavoritesScreen} />
         <Tab.Screen name="Einstellungen" component={SettingsScreen} />
       </Tab.Navigator>
         </SafeAreaView>

@@ -8,8 +8,24 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// SF Symbol component for iOS native icons
+const SFSymbol = ({ name, size = 20, color = '#333' }) => {
+  const symbolMap = {
+    'star.fill': '★',
+    'star': '☆',
+    'music.note': '♪',
+    'trash': '🗑',
+    'play.fill': '▶',
+  };
+  
+  return (
+    <Text style={{ fontSize: size, color, fontWeight: '500' }}>
+      {symbolMap[name] || '•'}
+    </Text>
+  );
+};
 
 export default function LibraryScreen() {
   const [favorites, setFavorites] = useState([]);
@@ -69,7 +85,7 @@ export default function LibraryScreen() {
         style={styles.removeButton} 
         onPress={() => removeFavorite(item)}
       >
-        <Icon name="star" size={20} color="#FFCC00" />
+        <SFSymbol name="star.fill" size={20} color="#FFCC00" />
       </TouchableOpacity>
     </View>
   );
@@ -81,7 +97,7 @@ export default function LibraryScreen() {
         <Text style={styles.itemArtist}>{item.artist || 'Unbekannter Künstler'}</Text>
         <Text style={styles.itemPath}>Lokal gespeichert</Text>
       </View>
-      <Icon name="music-note" size={20} color="#666" />
+      <SFSymbol name="music.note" size={20} color="#666" />
     </View>
   );
 
@@ -113,7 +129,7 @@ export default function LibraryScreen() {
       {activeTab === 'favorites' ? (
         favorites.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Icon name="star-border" size={48} color="#ccc" />
+            <SFSymbol name="star" size={48} color="#ccc" />
             <Text style={styles.emptyText}>Keine Favoriten</Text>
             <Text style={styles.emptySubtext}>
               Fügen Sie Songs über die Suche zu Ihren Favoriten hinzu
@@ -130,7 +146,7 @@ export default function LibraryScreen() {
       ) : (
         songs.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Icon name="music-note" size={48} color="#ccc" />
+            <SFSymbol name="music.note" size={48} color="#ccc" />
             <Text style={styles.emptyText}>Keine Songs heruntergeladen</Text>
             <Text style={styles.emptySubtext}>
               Laden Sie Songs über die Suche herunter

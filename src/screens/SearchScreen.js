@@ -10,11 +10,29 @@ import {
   Alert,
   SafeAreaView,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 import TrackPlayer from 'react-native-track-player';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '../config/api';
+
+// SF Symbol component for iOS native icons
+const SFSymbol = ({ name, size = 20, color = '#333' }) => {
+  const symbolMap = {
+    'play.fill': '▶',
+    'arrow.down.circle': '↓',
+    'video.fill': '▶',
+    'star': '☆',
+    'star.fill': '★',
+    'magnifyingglass': '🔍',
+    'music.note': '♪',
+  };
+  
+  return (
+    <Text style={{ fontSize: size, color, fontWeight: '500' }}>
+      {symbolMap[name] || '•'}
+    </Text>
+  );
+};
 
 export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -198,26 +216,43 @@ export default function SearchScreen() {
 
   const handleToggleFavorite = async (item) => {
     try {
-      const existingFavorites = await AsyncStorage.getItem('favorites') || '[]';
-      const favorites = JSON.parse(existingFavorites);
+      console.log('Toggling favorite for:', item);
+      const existingFavorites = await AsyncStorage.getItem('favorites');
+      console.log('Existing favorites raw:', existingFavorites);
+      
+      const favorites = existingFavorites ? JSON.parse(existingFavorites) : [];
+      console.log('Parsed favorites:', favorites);
       
       const index = favorites.findIndex(fav => fav.id === item.id);
+      
       if (index > -1) {
+        // Remove from favorites
         favorites.splice(index, 1);
-        Alert.alert('Entfernt', 'Aus Favoriten entfernt');
+        console.log('Removing from favorites, new list:', favorites);
+        await AsyncStorage.setItem('favorites', JSON.stringify(favorites));
+        Alert.alert('Entfernt', `"${item.title}" aus Favoriten entfernt`);
       } else {
-        favorites.push({
+        // Add to favorites
+        const newFavorite = {
           id: item.id,
           title: item.title,
-          artist: item.artist
-        });
-        Alert.alert('Hinzugefügt', 'Zu Favoriten hinzugefügt');
+          artist: item.artist || 'Unbekannter Künstler',
+          addedAt: new Date().toISOString(),
+        };
+        favorites.push(newFavorite);
+        console.log('Adding to favorites, new list:', favorites);
+        await AsyncStorage.setItem('favorites', JSON.stringify(favorites));
+        Alert.alert('Hinzugefügt', `"${item.title}" zu Favoriten hinzugefügt`);
       }
-      
-      await AsyncStorage.setItem('favorites', JSON.stringify(favorites));
     } catch (error) {
       console.error('Favorite error:', error);
+      Alert.alert('Fehler', 'Favorit konnte nicht gespeichert werden');
     }
+  };
+
+  const isFavorite = (item) => {
+    // This is a simplified check - in real app you'd track state properly
+    return false;
   };
 
   const renderResult = ({ item }) => (
@@ -230,28 +265,28 @@ export default function SearchScreen() {
           style={styles.actionButton} 
           onPress={() => handlePlay(item)}
         >
-          <Icon name="play-arrow" size={20} color="#333" />
+          <SFSymbol name="play.fill" size={20} color="#333" />
         </TouchableOpacity>
         
         <TouchableOpacity 
           style={styles.actionButton} 
           onPress={() => handleDownloadAudio(item)}
         >
-          <Icon name="download" size={20} color="#333" />
+          <SFSymbol name="arrow.down.circle" size={20} color="#333" />
         </TouchableOpacity>
         
         <TouchableOpacity 
           style={styles.actionButton} 
           onPress={() => handleDownloadVideo(item)}
         >
-          <Icon name="videocam" size={20} color="#333" />
+          <SFSymbol name="video.fill" size={20} color="#333" />
         </TouchableOpacity>
         
         <TouchableOpacity 
           style={styles.actionButton} 
           onPress={() => handleToggleFavorite(item)}
         >
-          <Icon name="star" size={20} color="#333" />
+          <SFSymbol name="star" size={20} color="#333" />
         </TouchableOpacity>
       </View>
     </View>
@@ -279,7 +314,7 @@ export default function SearchScreen() {
       
       {!loading && searchResults.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Icon name="search" size={48} color="#ccc" />
+          <SFSymbol name="magnifyingglass" size={48} color="#ccc" />
           <Text style={styles.emptyText}>
             {searchQuery.trim() ? 'Keine Ergebnisse gefunden' : 'Geben Sie einen Suchbegriff ein'}
           </Text>

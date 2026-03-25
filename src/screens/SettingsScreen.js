@@ -9,10 +9,26 @@ import {
   ActivityIndicator,
   SafeAreaView,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 import TrackPlayer from 'react-native-track-player';
 import RNFS from 'react-native-fs';
 import { apiClient } from '../config/api';
+
+// SF Symbol component for iOS native icons
+const SFSymbol = ({ name, size = 20, color = '#333' }) => {
+  const symbolMap = {
+    'cloud': '☁',
+    'play.circle.fill': '▶',
+    'externaldrive.connected.to.line.below': '💾',
+    'checkmark': '✓',
+    'xmark': '✕',
+  };
+  
+  return (
+    <Text style={{ fontSize: size, color, fontWeight: '500' }}>
+      {symbolMap[name] || '•'}
+    </Text>
+  );
+};
 
 export default function SettingsScreen() {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -103,17 +119,17 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Debug</Text>
         <TouchableOpacity style={styles.debugButton} onPress={testBackend}>
-          <Icon name="cloud" size={20} color="#007AFF" />
+          <SFSymbol name="cloud" size={20} color="#007AFF" />
           <Text style={styles.debugButtonText}>Test Backend</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.debugButton} onPress={testTrackPlayer}>
-          <Icon name="play-circle-filled" size={20} color="#34C759" />
+          <SFSymbol name="play.circle.fill" size={20} color="#34C759" />
           <Text style={styles.debugButtonText}>Test TrackPlayer</Text>
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.debugButton} onPress={testRNFS}>
-          <Icon name="storage" size={20} color="#FF9500" />
+          <SFSymbol name="externaldrive.connected.to.line.below" size={20} color="#FF9500" />
           <Text style={styles.debugButtonText}>Test RNFS</Text>
         </TouchableOpacity>
       </View>
