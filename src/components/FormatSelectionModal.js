@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { apiClient } from '../config/api';
-import { addLog } from './SettingsScreen';
+import { addLog } from '../screens/SettingsScreen';
 
 // SF Symbol component for iOS native icons
 const SFSymbol = ({ name, size = 20, color = '#333' }) => {
