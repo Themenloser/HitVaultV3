@@ -19,9 +19,6 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
-      - name: Pre-bundle Metro (fix toReversed bug)
-        run: |
-          npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res/
       - run: |
           cd android
           ./gradlew assembleRelease
@@ -39,9 +36,6 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
-      - name: Pre-bundle Metro (fix toReversed bug)
-        run: |
-          npx react-native bundle --platform ios --dev false --entry-file index.js --bundle-output ios/main.jsbundle --assets-dest ios/
       - run: |
           cd ios
           pod install
