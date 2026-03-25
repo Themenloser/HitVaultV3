@@ -2,6 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useColorScheme } from 'react-native';
+import { enableScreens } from 'react-native-screens';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import LibraryScreen from './src/screens/LibraryScreen';
 import SearchScreen from './src/screens/SearchScreen';
@@ -10,6 +11,9 @@ import PlaylistsScreen from './src/screens/PlaylistsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
+
+// Enable screens for better performance
+enableScreens();
 
 export default function App() {
   const colorScheme = useColorScheme();
