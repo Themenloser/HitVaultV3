@@ -56,31 +56,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
             clean archive
-      - name: Create ExportOptions
+      - name: Export IPA (No Signing)
         run: |
           cd ios
-          cat > ExportOptions.plist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>development</string>
-            <key>compileBitcode</key>
-            <false/>
-          </dict>
-          </plist>
-          EOF
-      - name: Export IPA
-        run: |
-          cd ios
-          xcodebuild \
-            -exportArchive \
-            -archivePath ./build/HitVaultV3.xcarchive \
-            -exportOptionsPlist ./ExportOptions.plist \
-            -exportPath ./build/export
+          # Kein Export für unsigned Archive - direkt .app packen
+          mkdir -p Payload
+          cp -r ./build/HitVaultV3.xcarchive/Products/Applications/HitVaultV3.app Payload/
+          zip -r HitVaultV3.ipa Payload/
       - uses: actions/upload-artifact@v4
         with:
           name: ios-ipa
-          path: ios/build/export/*.ipa
+          path: ios/HitVaultV3.ipa
